@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timetable-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: timetable-backend
+  template:
+    metadata:
+      labels:
+        app: timetable-backend
+    spec:
+      containers:
+        - name: timetable-backend
+          image: your-docker-repo/timetable-backend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DB_HOST
+              value: "timetable-db"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: timetable-secrets
+                  key: db_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: timetable-secrets
+                  key: db_password
+            - name: DB_NAME
+              value: "timetable"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timetable-backend
+spec:
+  selector:
+    app: timetable-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timetable-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timetable-db
+  template:
+    metadata:
+      labels:
+        app: timetable-db
+    spec:
+      containers:
+        - name: timetable-db
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: timetable-secrets
+                  key: db_user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: timetable-secrets
+                  key: db_password
+            - name: POSTGRES_DB
+              value: "timetable"
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timetable-db
+spec:
+  selector:
+    app: timetable-db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: timetable-secrets
+type: Opaque
+data:
+  db_user: cG9zdGdyZXM=         # base64 for 'postgres'
+  db_password: c2VjdXJlcGFzc3dvcmQ=  # base64 for 'securepassword'
