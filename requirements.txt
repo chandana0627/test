@@ -1,0 +1,7 @@
+# requirements.txt (for Python-based backend, if applicable)
+Django>=4.2
+djangorestframework
+psycopg2-binary
+gunicorn
+python-dotenv
+redis
